@@ -1,6 +1,5 @@
 package lbsproject.turnbyturnnavi;
 
-import android.Manifest;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -8,19 +7,22 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Bundle;
 import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
-import android.os.Bundle;
 import android.support.v7.app.AlertDialog;
-import android.text.Editable;
-import android.text.TextWatcher;
-import android.util.Log;
 import android.view.View;
-import android.view.inputmethod.InputMethodManager;
-import android.widget.AutoCompleteTextView;
-import android.widget.ListView;
+import android.widget.Button;
+import android.widget.Toast;
+import android.util.Log;
 
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
+import com.google.android.gms.common.GooglePlayServicesRepairableException;
+import com.google.android.gms.common.api.Status;
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.ui.PlaceAutocomplete;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -32,9 +34,8 @@ import static lbsproject.turnbyturnnavi.R.id.map;
 public class MapsActivity extends FragmentActivity
         implements OnMapReadyCallback {
 
+    private static final int REQUEST_CODE_AUTOCOMPLETE = 1;
     private GoogleMap mMap;
-    private InputMethodManager imm;
-    private AutoCompleteTextView autoCompView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,9 +45,14 @@ public class MapsActivity extends FragmentActivity
                 .findFragmentById(map);
         mapFragment.getMapAsync(this);
 
-        autoCompView = (AutoCompleteTextView) findViewById(R.id.autoCompleteTextView);
-        autoCompView.setAdapter(new CustomAdapter(this, R.layout.list_item));
-        initialSetting(); // 초기 설정
+        // autocomplete activity 실행할 Button
+        Button openButton = (Button) findViewById(R.id.open_button);
+        openButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openAutocompleteActivity(); // autocomplete를 실행할 Activity 실행
+            }
+        });
     }
 
     @Override
@@ -56,7 +62,7 @@ public class MapsActivity extends FragmentActivity
         // GPS Setting 상태 확인
         enableGPSSetting();
 
-        // Permission 설정 확인 (Runtime )
+        // Permission 설정 확인 (Runtime)
         if (ActivityCompat.checkSelfPermission
                 (this, android.Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED
@@ -69,6 +75,41 @@ public class MapsActivity extends FragmentActivity
         mMap.setMyLocationEnabled(true);
         // Device의 현재 위치를 반환해주는 버튼을 삭제
         mMap.getUiSettings().setMyLocationButtonEnabled(false);
+    }
+
+    private void openAutocompleteActivity() {
+        try {
+            // Intent를 이용하여 Google play Services가 가능 한지 판단
+            Intent intent = new PlaceAutocomplete.IntentBuilder(PlaceAutocomplete.MODE_FULLSCREEN)
+                    .build(this);
+            startActivityForResult(intent, REQUEST_CODE_AUTOCOMPLETE);
+        } catch (GooglePlayServicesRepairableException e) {
+            GoogleApiAvailability.getInstance().getErrorDialog(this, e.getConnectionStatusCode(),
+                    0 /* requestCode */).show();
+        } catch (GooglePlayServicesNotAvailableException e) {
+            String message = "Google Play Services is not available: " +
+                    GoogleApiAvailability.getInstance().getErrorString(e.errorCode);
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * autocomplete activity 끝나고 나서 결과를 불러내는 함수
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        // autocomplete widget으로 부터의 결과를 체크
+        if (requestCode == REQUEST_CODE_AUTOCOMPLETE) {
+            if (resultCode == RESULT_OK) {
+                Place place = PlaceAutocomplete.getPlace(this, data);
+
+            } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
+                Status status = PlaceAutocomplete.getStatus(this, data);
+            } else if (resultCode == RESULT_CANCELED) {
+            }
+        }
     }
 
     private void startLocationService() {
@@ -98,6 +139,7 @@ public class MapsActivity extends FragmentActivity
             ex.printStackTrace();
         }
     }
+
     /**
      * 리스너 클래스 정의
      */
@@ -127,8 +169,8 @@ public class MapsActivity extends FragmentActivity
     /**
      * 현재 위치의 지도를 보여주기 위해 정의한 메소드
      *
-     * @param latitude
-     * @param longitude
+     * @param latitude 현재 위치에 대한 Lat 값
+     * @param longitude 현재 위치에 대한 Long 값
      */
     private void showCurrentLocation(Double latitude, Double longitude) {
         // 현재 위치를 이용해 LatLon 객체 생성
@@ -165,19 +207,6 @@ public class MapsActivity extends FragmentActivity
                     }).show();
         } else { // GPS가 켜져 있다면 바로 현재 위치로
             startLocationService();
-        }
-    }
-
-    public void initialSetting() {
-        keyboardSetting(false);
-    }
-
-    public void keyboardSetting(boolean bool) {
-        imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if(bool) {
-            imm.showSoftInput(autoCompView, InputMethodManager.SHOW_FORCED); // true = Keyboard On
-        } else {
-            imm.hideSoftInputFromWindow(autoCompView.getWindowToken(), 0); // False = Keyboard Off
         }
     }
 }
