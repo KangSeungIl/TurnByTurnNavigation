@@ -53,12 +53,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private GPSListener gpsListener;
     private double myLocationLat;
     private double myLocationLng;
-
-
-    private static final String LOG_TAG = "Google Direction API";
-    private static final String DIRECTION_API_BASE = "https://maps.googleapis.com/maps/api/directions";
-    private static final String OUT_JSON = "/json";
-    private static final String API_KEY = "AIzaSyA9HtscpiGDrU3l-5eePCpeSi2Gz2I2VYg";
+    private double endLocationLat;
+    private double endLocationLng;
+    private static final String API_KEY = "8ebeb3d5-dfda-3849-a311-ce9c0292d0ca";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -121,7 +118,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
         }
     }
-
     /**
      * autocomplete activity 끝나고 나서 결과를 불러내는 함수
      *
@@ -146,7 +142,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
                 // 선택한 장소에 마커 표시
                 mMap.addMarker(new MarkerOptions().position(place.getLatLng()).title((String) place.getName()));
-//                direction(myLocationLat, myLocationLng, place.getId());
+
+                // 선택한 장소의 lat, lng 값을 저장
+                endLocationLat = place.getLatLng().latitude;
+                endLocationLng = place.getLatLng().longitude;
+
+                // T-map url을 이용하여 JSON 파일을 불러오기 위한 함수 사용
                 new JsonLoadingTask().execute();
 
             } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
@@ -270,129 +271,67 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
- /*   public static ArrayList direction(double originLat, double originLng, String destination) {
-        double startLat = originLat;
-        double startLng = originLng;
-        String end = destination;
-        ArrayList resultList = null;
-        HttpURLConnection conn = null;
-        StringBuilder jsonResults = new StringBuilder();
-        try {
-            StringBuilder sb = new StringBuilder(DIRECTION_API_BASE + OUT_JSON);
-
-            sb.append("?origin=" + startLat + startLng);
-            sb.append("&destination=place_id:" + end);
-            sb.append("&language=kr");
-            sb.append("&mode=transit");
-            sb.append("&key=" + API_KEY);
-
-            URL url = new URL(sb.toString());
-            conn = (HttpURLConnection) url.openConnection();
-            Log.v("URL", String.valueOf(url));
-
-            InputStreamReader in = new InputStreamReader(conn.getInputStream());
-            // Load the results into a StringBuilder
-            int read;
-            char[] buff = new char[1024];
-            while ((read = in.read(buff)) != -1) {
-                jsonResults.append(buff, 0, read);
-            }
-        } catch (MalformedURLException e) {
-            Log.e(LOG_TAG, "Error processing Places API URL", e);
-            return resultList;
-        } catch (IOException e) {
-            Log.e(LOG_TAG, "Error connecting to Places API", e);
-            return resultList;
-        } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
-        try {
-            // Create a JSON object hierarchy from the results
-            JSONObject jsonObj = new JSONObject(jsonResults.toString());
-            JSONArray routesJsonArray = jsonObj.getJSONArray("routes");
-            // Extract the Place descriptions from the results
-            resultList = new ArrayList(routesJsonArray.length());
-            for (int i = 0; i < routesJsonArray.length(); i++) {
-                System.out.println(routesJsonArray.getJSONObject(i).getString("routes"));
-                System.out.println("============================================================");
-                resultList.add(routesJsonArray.getJSONObject(i).getString("routes"));
-            }
-        } catch (JSONException e) {
-            Log.e(LOG_TAG, "Cannot process JSON results", e);
-        }
-        return resultList;
-    }*/
-
+    // T-map Url 에서 JSON 파일을 가져오는 함수
     public String getJsonText() {
-        Log.v("getJsonText","실행");
 
         StringBuffer sb = new StringBuffer();
 
         try {
-            String line = getStringFromUrl("https://maps.googleapis.com/maps/api/directions/json?origin=Chicago,IL&destination=Los+Angeles,CA&waypoints=Joplin,MO|Oklahoma+City,OK&key=AIzaSyA9HtscpiGDrU3l-5eePCpeSi2Gz2I2VYg");
-            Log.v("URL", line);
+            // T-map 연동 url 주소
+            String url = "https://apis.skplanetx.com/tmap/routes/pedestrian?version=1"
+                    + "&startX=" + myLocationLng
+                    + "&startY=" + myLocationLat
+                    + "&endX=" + endLocationLng
+                    + "&endY=" + endLocationLat
+                    + "&reqCoordType=WGS84GEO"
+                    + "&startName=%EC%B6%9C%EB%B0%9C&endName=%EB%B3%B8%EC%82%AC"
+                    + "&appKey=" + API_KEY;
+            // url 주소로 JSON 파일 가져옴
+            String line = getStringFromUrl(url);
             // 원격에서 읽어온 데이터로 JSON 객체 생성
             JSONObject object = new JSONObject(line);
 
-            // "steps" 배열로 구성 되어있으므로 JSON 배열생성
-            JSONArray routesArray = object.getJSONArray("routes");
+            // "features" 배열로 구성 되어있으므로 JSON 배열생성
+            JSONArray featuresArray = object.getJSONArray("features");
 
-            for (int i = 0; i < routesArray.length(); i++) {
-                JSONArray legsArray = ((JSONObject) routesArray.get(i)).getJSONArray("legs");
+            for (int i = 0; i < featuresArray.length(); i++) {
+                // "features" JSON Array에서 "properties" JSON Object를 가져오기 위한 JSON Object 생성
+                JSONObject propertiesObject = featuresArray.getJSONObject(i);
 
-                for(int j = 0; j < legsArray.length(); j++) {
-                    JSONArray stepsArray = ((JSONObject) legsArray.get(j)).getJSONArray("steps");
+                System.out.println(propertiesObject.getJSONObject("properties").getString("index"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("pointIndex"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("name"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("description"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("direction"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("intersectionName"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("turnType"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("pointType"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("totalDistance"));
+                System.out.println(propertiesObject.getJSONObject("properties").getString("totalTime"));
+                System.out.println("============================================================");
 
-                    for(int k = 0; k < stepsArray.length(); k++)
-                    {
-                        // bodylist 배열안에 내부 JSON 이므로 JSON 내부 객체 생성
-                        JSONObject insideObject = stepsArray.getJSONObject(i);
-
-                        System.out.println(insideObject.getJSONObject("distance").getString("text"));
-                        System.out.println(insideObject.getJSONObject("distance").getString("value"));
-                        System.out.println(insideObject.getJSONObject("duration").getString("text"));
-                        System.out.println(insideObject.getJSONObject("duration").getString("value"));
-                        System.out.println(insideObject.getJSONObject("end_location").getString("lat"));
-                        System.out.println(insideObject.getJSONObject("end_location").getString("lng"));
-                        System.out.println(insideObject.getString("html_instructions"));
-                        System.out.println(insideObject.getJSONObject("polyline").getString("points"));
-                        System.out.println(insideObject.getJSONObject("start_location").getString("lat"));
-                        System.out.println(insideObject.getJSONObject("start_location").getString("lng"));
-                        System.out.println(insideObject.getString("travel_mode"));
-                        System.out.println("============================================================");
-
-                        // StringBuffer 메소드 ( append : StringBuffer 인스턴스에 뒤에 덧붙인다. )
-                        // JSONObject 메소드 ( get.String(), getInt(), getBoolean() .. 등 : 객체로부터 데이터의 타입에 따라 원하는 데이터를 읽는다. )
-
-                        sb.append("distance text :").append(insideObject.getJSONObject("distance").getString("text")).append("\n");
-                        sb.append("distance value :").append(insideObject.getJSONObject("distance").getString("value")).append("\n");
-                        sb.append("duration text :").append(insideObject.getJSONObject("duration").getString("text")).append("\n");
-                        sb.append("duration value :").append(insideObject.getJSONObject("duration").getString("value")).append("\n");
-                        sb.append("end_location lat :").append(insideObject.getJSONObject("end_location").getString("lat")).append("\n");
-                        sb.append("end_location lng :").append(insideObject.getJSONObject("end_location").getString("lng")).append("\n");
-                        sb.append("html_instructions : ").append(insideObject.getString("html_instructions")).append("\n");
-                        sb.append("polyline points :").append(insideObject.getJSONObject("polyline").getString("points")).append("\n");
-                        sb.append("start_location lat :").append(insideObject.getJSONObject("start_location").getString("lat")).append("\n");
-                        sb.append("start_location lng :").append(insideObject.getJSONObject("start_location").getString("lng")).append("\n");
-                        sb.append("travel_mode : ").append(insideObject.getString("travel_mode")).append("\n");
-                        sb.append("\n");
-                    }
+                sb.append("index :").append(propertiesObject.getJSONObject("properties").getString("index")).append("\n");
+                sb.append("pointIndex :").append(propertiesObject.getJSONObject("properties").getString("pointIndex")).append("\n");
+                sb.append("name :").append(propertiesObject.getJSONObject("properties").getString("name")).append("\n");
+                sb.append("description :").append(propertiesObject.getJSONObject("properties").getString("description")).append("\n");
+                sb.append("direction :").append(propertiesObject.getJSONObject("properties").getString("direction")).append("\n");
+                sb.append("intersectionName :").append(propertiesObject.getJSONObject("properties").getString("intersectionName")).append("\n");
+                sb.append("turnType : ").append(propertiesObject.getJSONObject("properties").getString("turnType")).append("\n");
+                sb.append("pointType :").append(propertiesObject.getJSONObject("properties").getString("pointType")).append("\n");
+                sb.append("totalDistance :").append(propertiesObject.getJSONObject("properties").getString("totalDistance")).append("\n");
+                sb.append("totalTime :").append(propertiesObject.getJSONObject("properties").getString("totalTime")).append("\n");
+                sb.append("\n");
                 }
-            } // for
-        } catch (JSONException e) {
+            } catch (JSONException e) {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
         }
         return sb.toString();
-    } // getJsonText
+    }
 
-
-    // getStringFromUrl : 주어진 URL 페이지를 문자열로 얻는다.
+    // 주어진 URL 페이지를 문자열로 얻는 함수
     public String getStringFromUrl(String url) throws UnsupportedEncodingException {
-        Log.v("getStringFromUrl","실행");
 
         BufferedReader br = null;
         HttpURLConnection urlConnection = null;
@@ -401,8 +340,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         StringBuffer sb = new StringBuffer();
 
         try {
-            URL jsonurl = new URL(url);
-            urlConnection = (HttpURLConnection) jsonurl.openConnection();
+            URL jsonUrl = new URL(url);
+            urlConnection = (HttpURLConnection) jsonUrl.openConnection();
             InputStream contentStream = urlConnection.getInputStream();
 
             br = new BufferedReader(new InputStreamReader(contentStream, "UTF-8"));
@@ -426,17 +365,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         }
         return sb.toString();
-    } // getStringFromUrl
+    }
 
     private class JsonLoadingTask extends AsyncTask<String, Void, String> {
+        // doInBackground : 백그라운드 작업을 진행한다.
         @Override
         protected String doInBackground(String... strs) {
-            Log.v("Background","실행");
             return getJsonText();
-        } // doInBackground : 백그라운드 작업을 진행한다.
+        }
+        // onPostExecute : 백그라운드 작업이 끝난 후 UI 작업을 진행한다.
         @Override
         protected void onPostExecute(String result) {
-            Log.v("onPostExecute","실행");
-        } // onPostExecute : 백그라운드 작업이 끝난 후 UI 작업을 진행한다.
-    } // JsonLoadingTask
+        }
+    }
 }
