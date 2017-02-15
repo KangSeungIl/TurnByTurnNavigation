@@ -30,9 +30,10 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -42,6 +43,7 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.StringTokenizer;
 
 import static lbsproject.turnbyturnnavi.R.id.map;
 
@@ -51,10 +53,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private GoogleMap mMap;
     private LocationManager manager;
     private GPSListener gpsListener;
-    private double myLocationLat;
-    private double myLocationLng;
-    private double endLocationLat;
-    private double endLocationLng;
+    private PolylineOptions polylineOptions; // polyline을 그릴 point들을 add할 polylineoption
+    private double myLocationLat;  // 출발지 Lat
+    private double myLocationLng;  // 출발지 Lng
+    private double endLocationLat; // 도착지 Lat
+    private double endLocationLng; // 도착지 Lng
     private static final String API_KEY = "8ebeb3d5-dfda-3849-a311-ce9c0292d0ca";
 
     @Override
@@ -69,6 +72,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         manager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         // 위치 정보를 받을 리스너 생성
         gpsListener = new GPSListener();
+        polylineOptions = new PolylineOptions();
 
         // autocomplete activity 실행할 Button
         Button openButton = (Button) findViewById(R.id.open_button);
@@ -283,8 +287,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     + "&startY=" + myLocationLat
                     + "&endX=" + endLocationLng
                     + "&endY=" + endLocationLat
-                    + "&reqCoordType=WGS84GEO"
-                    + "&startName=%EC%B6%9C%EB%B0%9C&endName=%EB%B3%B8%EC%82%AC"
+                    + "&reqCoordType=WGS84GEO" // 출발지, 도착지 좌표계 유형 : 경위도
+                    + "&resCoordType=WGS84GEO" // 응답 받는 좌표계 유형 : 경위도
+                    + "&startName=%EC%B6%9C%EB%B0%9C%EC%A7%80" // 출발지 UTF-8 변환
+                    + "&endName=%EB%8F%84%EC%B0%A9%EC%A7%80" // 도착지 UTF-8 변환
                     + "&appKey=" + API_KEY;
             // url 주소로 JSON 파일 가져옴
             String line = getStringFromUrl(url);
@@ -296,35 +302,115 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             for (int i = 0; i < featuresArray.length(); i++) {
                 // "features" JSON Array에서 "properties" JSON Object를 가져오기 위한 JSON Object 생성
-                JSONObject propertiesObject = featuresArray.getJSONObject(i);
+                JSONObject typeObject = featuresArray.getJSONObject(i);
 
-                System.out.println(propertiesObject.getJSONObject("properties").getString("index"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("pointIndex"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("name"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("description"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("direction"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("intersectionName"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("turnType"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("pointType"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("totalDistance"));
-                System.out.println(propertiesObject.getJSONObject("properties").getString("totalTime"));
-                System.out.println("============================================================");
+                if(typeObject.getJSONObject("geometry").getString("type").equals("Point")) {
+                    StringTokenizer tokenizer = new StringTokenizer(typeObject.getJSONObject("geometry").getString("coordinates"), "\\[|,|\\]");
+                    String[] latData = new String[( tokenizer.countTokens() / 2 )]; // Lat 데이터를 저장해줄 String 배열
+                    String[] lngData = new String[( tokenizer.countTokens() / 2 )]; // Lng 데이터를 저장해줄 String 배열
+                    int tokenCount = 1;   // Lat와 Lng 데이터를 나눠서 저장해 주기 위한 사용한 token을 Count
+                    int latDataCount = 0; // latData String 배열의 index
+                    int lngDataCount = 0; // lngData String 배열의 index
+                    // coordinates 의 홀수Token - lng, 짝수Token - lat 데이터
+                    while(tokenizer.hasMoreTokens()) {
+                        if(tokenCount%2 != 0) { // 홀수Token - lng 데이터 추출
+                            String coordinates = tokenizer.nextToken();
+                            System.out.println("coordinates lngData:" + coordinates);
+                            sb.append("coordinates lngData:").append(coordinates).append("\n");
+                            lngData[lngDataCount] = coordinates;
+                            lngDataCount++;
+                        } else { // 짝수Token - lat 데이터 추출
+                            String coordinates = tokenizer.nextToken();
+                            System.out.println("coordinates latData:" + coordinates);
+                            sb.append("coordinates latData:").append(coordinates).append("\n");
+                            latData[latDataCount] = coordinates;
+                            latDataCount++;
+                        }
+                        tokenCount++;
+                    }
+                    // latlng 데이터를 polylineOptions에 add하여 한번에 polyline으로 그릴 준비
+                    for(int j = 0; j < latData.length; j++) {
+                        polylineOptions.add(new LatLng(Double.parseDouble(latData[j]), Double.parseDouble(lngData[j])));
+                    }
 
-                sb.append("index :").append(propertiesObject.getJSONObject("properties").getString("index")).append("\n");
-                sb.append("pointIndex :").append(propertiesObject.getJSONObject("properties").getString("pointIndex")).append("\n");
-                sb.append("name :").append(propertiesObject.getJSONObject("properties").getString("name")).append("\n");
-                sb.append("description :").append(propertiesObject.getJSONObject("properties").getString("description")).append("\n");
-                sb.append("direction :").append(propertiesObject.getJSONObject("properties").getString("direction")).append("\n");
-                sb.append("intersectionName :").append(propertiesObject.getJSONObject("properties").getString("intersectionName")).append("\n");
-                sb.append("turnType : ").append(propertiesObject.getJSONObject("properties").getString("turnType")).append("\n");
-                sb.append("pointType :").append(propertiesObject.getJSONObject("properties").getString("pointType")).append("\n");
-                sb.append("totalDistance :").append(propertiesObject.getJSONObject("properties").getString("totalDistance")).append("\n");
-                sb.append("totalTime :").append(propertiesObject.getJSONObject("properties").getString("totalTime")).append("\n");
-                sb.append("\n");
+                    System.out.println("index :" + typeObject.getJSONObject("properties").getString("index"));
+                    System.out.println("pointIndex :" + typeObject.getJSONObject("properties").getString("pointIndex"));
+                    System.out.println("name :" + typeObject.getJSONObject("properties").getString("name"));
+                    System.out.println("description :" + typeObject.getJSONObject("properties").getString("description"));
+                    System.out.println("direction :" + typeObject.getJSONObject("properties").getString("direction"));
+                    System.out.println("intersectionName :" + typeObject.getJSONObject("properties").getString("intersectionName"));
+                    System.out.println("turnType :" + typeObject.getJSONObject("properties").getString("turnType"));
+                    System.out.println("pointType :" + typeObject.getJSONObject("properties").getString("pointType"));
+                    if(typeObject.getJSONObject("properties").getString("pointType").equals("SP"))
+                    {
+                        System.out.println("totalDistance :" + typeObject.getJSONObject("properties").getString("totalDistance"));
+                        System.out.println("totalTime :" + typeObject.getJSONObject("properties").getString("totalTime"));
+                    }
+                    System.out.println("============================================================");
+
+                    sb.append("index :").append(typeObject.getJSONObject("properties").getString("index")).append("\n");
+                    sb.append("pointIndex :").append(typeObject.getJSONObject("properties").getString("pointIndex")).append("\n");
+                    sb.append("name :").append(typeObject.getJSONObject("properties").getString("name")).append("\n");
+                    sb.append("description :").append(typeObject.getJSONObject("properties").getString("description")).append("\n");
+                    sb.append("direction :").append(typeObject.getJSONObject("properties").getString("direction")).append("\n");
+                    sb.append("intersectionName :").append(typeObject.getJSONObject("properties").getString("intersectionName")).append("\n");
+                    sb.append("turnType : ").append(typeObject.getJSONObject("properties").getString("turnType")).append("\n");
+                    sb.append("pointType :").append(typeObject.getJSONObject("properties").getString("pointType")).append("\n");
+                    if(typeObject.getJSONObject("properties").getString("pointType").equals("SP"))
+                    {
+                        sb.append("totalDistance :").append(typeObject.getJSONObject("properties").getString("totalDistance")).append("\n");
+                        sb.append("totalTime :").append(typeObject.getJSONObject("properties").getString("totalTime")).append("\n");
+                    }
+                    sb.append("\n");
+
+                } else {
+                    StringTokenizer tokenizer = new StringTokenizer(typeObject.getJSONObject("geometry").getString("coordinates"),"\\[|,|\\]");
+                    String[] latData = new String[( tokenizer.countTokens() / 2 )]; // Lat 데이터를 저장해줄 String 배열
+                    String[] lngData = new String[( tokenizer.countTokens() / 2 )]; // Lng 데이터를 저장해줄 String 배열
+                    int tokenCount = 1;   // Lat와 Lng 데이터를 나눠서 저장해 주기 위한 사용한 token을 Count
+                    int latDataCount = 0; // latData String 배열의 index
+                    int lngDataCount = 0; // lngData String 배열의 index
+                    while(tokenizer.hasMoreTokens()) {
+                        if(tokenCount%2 != 0) { // 홀수Token - lng 데이터 추출
+                            String coordinates = tokenizer.nextToken();
+                            System.out.println("coordinates lngData:" + coordinates);
+                            sb.append("coordinates lngData:").append(coordinates).append("\n");
+                            lngData[lngDataCount] = coordinates;
+                            lngDataCount++;
+                        } else { // 짝수Token - lat 데이터 추출
+                            String coordinates = tokenizer.nextToken();
+                            System.out.println("coordinates latData:" + coordinates);
+                            sb.append("coordinates latData:").append(coordinates).append("\n");
+                            latData[latDataCount] = coordinates;
+                            latDataCount++;
+                        }
+                        tokenCount++;
+                    }
+                    // latlng 데이터를 polylineOptions에 add하여 한번에 polyline으로 그릴 준비
+                    for(int j = 0; j < latData.length; j++) {
+                        polylineOptions.add(new LatLng(Double.parseDouble(latData[j]), Double.parseDouble(lngData[j])));
+                    }
+
+                    System.out.println("index :" + typeObject.getJSONObject("properties").getString("index"));
+                    System.out.println("lineIndex :" + typeObject.getJSONObject("properties").getString("lineIndex"));
+                    System.out.println("name :" + typeObject.getJSONObject("properties").getString("name"));
+                    System.out.println("description :" + typeObject.getJSONObject("properties").getString("description"));
+                    System.out.println("time :" + typeObject.getJSONObject("properties").getString("time"));
+                    System.out.println("distance :" + typeObject.getJSONObject("properties").getString("distance"));
+                    System.out.println("roadType :" + typeObject.getJSONObject("properties").getString("roadType"));
+                    System.out.println("============================================================");
+
+                    sb.append("index :").append(typeObject.getJSONObject("properties").getString("index")).append("\n");
+                    sb.append("lineIndex :").append(typeObject.getJSONObject("properties").getString("lineIndex")).append("\n");
+                    sb.append("name :").append(typeObject.getJSONObject("properties").getString("name")).append("\n");
+                    sb.append("description :").append(typeObject.getJSONObject("properties").getString("description")).append("\n");
+                    sb.append("time :").append(typeObject.getJSONObject("properties").getString("time")).append("\n");
+                    sb.append("distance :").append(typeObject.getJSONObject("properties").getString("distance")).append("\n");
+                    sb.append("roadType : ").append(typeObject.getJSONObject("properties").getString("roadType")).append("\n");
+                    sb.append("\n");
                 }
-            } catch (JSONException e) {
-            e.printStackTrace();
-        } catch (Exception e) {
+            }
+            } catch (Exception e) {
             e.printStackTrace();
         }
         return sb.toString();
@@ -376,6 +462,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // onPostExecute : 백그라운드 작업이 끝난 후 UI 작업을 진행한다.
         @Override
         protected void onPostExecute(String result) {
+            // 경로 polyline으로 그려주기
+            Polyline polyline = mMap.addPolyline(polylineOptions);
         }
     }
 }
