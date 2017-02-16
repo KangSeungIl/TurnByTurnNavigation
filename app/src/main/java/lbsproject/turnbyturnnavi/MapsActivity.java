@@ -16,6 +16,8 @@ import android.support.v7.app.AlertDialog;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -53,7 +55,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private GoogleMap mMap;
     private LocationManager manager;
     private GPSListener gpsListener;
+    private TextView placeImfo; // 선택된 장소의 이름, 주소를 보려줄 TextView
+    private RelativeLayout imformationLayout; // 선택된 장소의 이름, 주소, 도착지설정버튼, 상세정보버튼을 보여줄 Layout
+    private Button endLocationSet;  // 도착지 설정 버튼
+    private Button moreImformation; // 상세 정보 버튼
     private PolylineOptions polylineOptions; // polyline을 그릴 point들을 add할 polylineoption
+    private String placesImformation; // 상세 정보에 필요한 장소 정보들을 저장할 String
+    private View fragment;         // 상세정보 Fragment를 조정하기 위한 View 객체
     private double myLocationLat;  // 출발지 Lat
     private double myLocationLng;  // 출발지 Lng
     private double endLocationLat; // 도착지 Lat
@@ -68,10 +76,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(map);
         mapFragment.getMapAsync(this);
 
+        // 상세정보 Fragment를 조정하기 위한 fragment 변수(View 객체)
+        fragment = findViewById(R.id.imformationFragment);
+        // 초기 설정은 상세정보 Fragment를 보이지 않게 하기
+        fragment.setVisibility(View.GONE);
+
         // 위치 관리자 객체 참조
         manager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         // 위치 정보를 받을 리스너 생성
         gpsListener = new GPSListener();
+        // 폴리라인을 그릴 point 객체를 add해주기 위한 polylineoptions 객체
         polylineOptions = new PolylineOptions();
 
         // autocomplete activity 실행할 Button
@@ -137,7 +151,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (requestCode == REQUEST_CODE_AUTOCOMPLETE) {
             if (resultCode == RESULT_OK) {
                 // 선택한 장소에 대한 데이터 가져옴
-                Place place = PlaceAutocomplete.getPlace(this, data);
+                final Place place = PlaceAutocomplete.getPlace(this, data);
                 Log.i("Place Selected: ", "" + place.getName());
 
                 // 선택한 장소로 Camera 이동
@@ -147,12 +161,41 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 // 선택한 장소에 마커 표시
                 mMap.addMarker(new MarkerOptions().position(place.getLatLng()).title((String) place.getName()));
 
-                // 선택한 장소의 lat, lng 값을 저장
-                endLocationLat = place.getLatLng().latitude;
-                endLocationLng = place.getLatLng().longitude;
+                // 선택된 장소의 이름, 주소, 도착지설정버튼, 상세정보버튼을 보여줄 Layout
+                imformationLayout = (RelativeLayout) findViewById(R.id.imformationLayout);
+                imformationLayout.setVisibility(View.VISIBLE);
 
-                // T-map url을 이용하여 JSON 파일을 불러오기 위한 함수 사용
-                new JsonLoadingTask().execute();
+                // 선택된 장소의 이름, 주소를 저장하고, 보여중 TextView
+                placeImfo = (TextView) findViewById(R.id.place_imfo);
+                placeImfo.setText(place.getName() + "\n");
+                placeImfo.append(place.getAddress() + "\n");
+
+                // 도착지 설정 버튼
+                endLocationSet = (Button) findViewById(R.id.endLocationSet);
+                endLocationSet.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        //
+                        imformationLayout.setVisibility(View.GONE);
+
+                        // 선택한 장소의 lat, lng 값을 저장
+                        endLocationLat = place.getLatLng().latitude;
+                        endLocationLng = place.getLatLng().longitude;
+
+                        // T-map url을 이용하여 JSON 파일을 불러오기 위한 함수 사용
+                        new JsonLoadingTask().execute();
+                    }
+                });
+
+                // 상세정보 버튼
+                moreImformation = (Button) findViewById(R.id.moreImformation);
+                moreImformation.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        // 상세정보 보이기
+                        fragment.setVisibility(View.VISIBLE);
+                    }
+                });
 
             } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
                 // 결과 에러가 났을 경우 상태 데이터를 가져옴
@@ -167,7 +210,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
      * 현재 위치를 반환해주기 위한 함수
      */
     private void startMyLocationService() {
-        long minTime = 10000; // 10초 단위로 Reset
+        long minTime = 5000; // 5초 단위로 Reset
         float minDistance = 0; // 거리는 0단위로 Reset
 
         try {
@@ -240,11 +283,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         myLocationLng = longitude;
         LatLng currentLocation = new LatLng(latitude, longitude);
 
-
         // Device의 View를 현재 위치로 재설정
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLocation, 15));
         mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-
     }
 
     // GPS Setting 상태 확인
@@ -315,14 +356,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     while(tokenizer.hasMoreTokens()) {
                         if(tokenCount%2 != 0) { // 홀수Token - lng 데이터 추출
                             String coordinates = tokenizer.nextToken();
-                            System.out.println("coordinates lngData:" + coordinates);
-                            sb.append("coordinates lngData:").append(coordinates).append("\n");
+                            System.out.println("coordinates lngData :" + coordinates);
+                            sb.append("coordinates lngData :").append(coordinates).append("\n");
                             lngData[lngDataCount] = coordinates;
                             lngDataCount++;
                         } else { // 짝수Token - lat 데이터 추출
                             String coordinates = tokenizer.nextToken();
-                            System.out.println("coordinates latData:" + coordinates);
-                            sb.append("coordinates latData:").append(coordinates).append("\n");
+                            System.out.println("coordinates latData :" + coordinates);
+                            sb.append("coordinates latData :").append(coordinates).append("\n");
                             latData[latDataCount] = coordinates;
                             latDataCount++;
                         }
@@ -373,14 +414,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     while(tokenizer.hasMoreTokens()) {
                         if(tokenCount%2 != 0) { // 홀수Token - lng 데이터 추출
                             String coordinates = tokenizer.nextToken();
-                            System.out.println("coordinates lngData:" + coordinates);
-                            sb.append("coordinates lngData:").append(coordinates).append("\n");
+                            System.out.println("coordinates lngData :" + coordinates);
+                            sb.append("coordinates lngData :").append(coordinates).append("\n");
                             lngData[lngDataCount] = coordinates;
                             lngDataCount++;
                         } else { // 짝수Token - lat 데이터 추출
                             String coordinates = tokenizer.nextToken();
-                            System.out.println("coordinates latData:" + coordinates);
-                            sb.append("coordinates latData:").append(coordinates).append("\n");
+                            System.out.println("coordinates latData :" + coordinates);
+                            sb.append("coordinates latData :").append(coordinates).append("\n");
                             latData[latDataCount] = coordinates;
                             latDataCount++;
                         }
@@ -410,9 +451,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     sb.append("\n");
                 }
             }
-            } catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
+        placesImformation = sb.toString();
         return sb.toString();
     }
 
@@ -453,6 +495,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return sb.toString();
     }
 
+    // JSON 파일을 백그라운드에서 실행하기 위한 쓰레드를 만드는 클래스
     private class JsonLoadingTask extends AsyncTask<String, Void, String> {
         // doInBackground : 백그라운드 작업을 진행한다.
         @Override
@@ -464,6 +507,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         protected void onPostExecute(String result) {
             // 경로 polyline으로 그려주기
             Polyline polyline = mMap.addPolyline(polylineOptions);
+        }
+    }
+
+    // 뒤로 가기 버튼 Custom
+    @Override
+    public void onBackPressed() {
+        if(fragment.getVisibility() == View.VISIBLE) {
+            fragment.setVisibility(View.GONE);
+        } else {
+            super.onBackPressed();
         }
     }
 }

@@ -19,10 +19,10 @@
             />
     </FrameLayout>
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
-
+        android:orientation="vertical"
+        >
         <Button
             android:id="@+id/open_button"
             android:text="검색"
@@ -31,4 +31,44 @@
             android:layout_gravity="left" />
 
     </LinearLayout>
+    <RelativeLayout
+        android:id="@+id/imformationLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:visibility="gone"
+        android:background="@color/white"
+        >
+        <TextView
+            android:id="@+id/place_imfo"
+            android:text="장소 정보"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_below="@+id/place_imfo"
+            >
+            <Button
+                android:id="@+id/endLocationSet"
+                android:text="도착지로 설정"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+            <Button
+                android:id="@+id/moreImformation"
+                android:text="상세 정보"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+    </RelativeLayout>
+    <fragment
+        class="lbsproject.turnbyturnnavi.MoreImformationFragment"
+        android:id="@+id/imformationFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        />
 </RelativeLayout>
