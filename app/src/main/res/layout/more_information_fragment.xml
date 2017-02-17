@@ -6,10 +6,10 @@
     android:layout_height="match_parent"
     >
     <TextView
-        android:id="@+id/textView1"
-        android:text="Test"
+        android:id="@+id/moreImformationText"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/white"
+        android:gravity="center"
         />
 </LinearLayout>

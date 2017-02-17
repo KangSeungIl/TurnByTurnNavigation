@@ -60,6 +60,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Button endLocationSet;  // 도착지 설정 버튼
     private Button moreImformation; // 상세 정보 버튼
     private PolylineOptions polylineOptions; // polyline을 그릴 point들을 add할 polylineoption
+    private Polyline polyline;
     private String placesImformation; // 상세 정보에 필요한 장소 정보들을 저장할 String
     private View fragment;         // 상세정보 Fragment를 조정하기 위한 View 객체
     private double myLocationLat;  // 출발지 Lat
@@ -121,7 +122,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
      */
     private void openAutocompleteActivity() {
         try {
-            // Intent를 이용하여 Google play Services가 가능 한지 판단
+            // Intent를 이용하여 장소자동완성 activity와 통신
             Intent intent = new PlaceAutocomplete.IntentBuilder(PlaceAutocomplete.MODE_FULLSCREEN)
                     .build(this);
             // onActivityResult함수로 값을 넘겨줌
@@ -175,7 +176,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 endLocationSet.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        //
+                        // 도착지 설정시 정보 창은 보이지 않게 함
                         imformationLayout.setVisibility(View.GONE);
 
                         // 선택한 장소의 lat, lng 값을 저장
@@ -193,6 +194,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     @Override
                     public void onClick(View v) {
                         // 상세정보 보이기
+                        TextView moreImformationText = (TextView) fragment.findViewById(R.id.moreImformationText);
+                        moreImformationText.setText("장소명 : " + place.getName() + "\n");
+                        moreImformationText.append("주소 : " + place.getAddress() + "\n");
+                        moreImformationText.append("전화번호 : " + place.getPhoneNumber() + "\n");
+                        moreImformationText.append("장소 유형 : " + place.getPlaceTypes() + "\n");
+                        moreImformationText.append("웹사이트 : " + place.getWebsiteUri() + "\n");
+                        moreImformationText.append("평점 : " + place.getRating() + "\n");
+                        // 상세 정보 Fragment 창 보이기
                         fragment.setVisibility(View.VISIBLE);
                     }
                 });
@@ -506,7 +515,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         @Override
         protected void onPostExecute(String result) {
             // 경로 polyline으로 그려주기
-            Polyline polyline = mMap.addPolyline(polylineOptions);
+            polyline = mMap.addPolyline(polylineOptions);
         }
     }
 
@@ -514,7 +523,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onBackPressed() {
         if(fragment.getVisibility() == View.VISIBLE) {
+            // 정보 창이 켜져 있을 때 뒤로 가기 버튼을 누느면 정보창 없앰
             fragment.setVisibility(View.GONE);
+        } else if(polyline.isVisible()) {
+            polyline.remove();
+            polylineOptions = new PolylineOptions();
+            imformationLayout.setVisibility(View.VISIBLE);
         } else {
             super.onBackPressed();
         }
